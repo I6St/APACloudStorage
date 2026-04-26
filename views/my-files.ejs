@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的文件 | APACloudStorage</title>
+</head>
+<body>
+    <h1>我的文件</h1>
+    <p><%= ip %>，欢迎你</p>
+    <form action="/api/my-files" method="post">
+        <label for="username">用户名:</label>
+        <input type="text" id="username" name="username" required>
+        <br>
+        <label for="password">密码:</label>
+        <input type="password" id="password" name="password" required>
+        <br>
+        <input type="submit" value="查看文件">
+    </form>
+</body>
+</html>

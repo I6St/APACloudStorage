@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 | APACloudStorage</title>
+</head>
+<body>
+    <h1>注册</h1>
+    <p><%= ip %>，欢迎你</p>
+    <form action="/api/register" method="post">
+        <label for="username">用户名:</label>
+        <input type="text" id="username" name="username" required>
+        <br>
+        <label for="email">邮箱:</label>
+        <input type="email" id="email" name="email" required>
+        <br>
+        <label for="password">密码:</label>
+        <input type="password" id="password" name="password" required>
+        <label for="inviteCode">邀请码:</label>
+        <input type="password" id="inviteCode" name="inviteCode" required>
+        <br>
+        <input type="submit" value="注册">
+    </form>
+</body>
+</html>

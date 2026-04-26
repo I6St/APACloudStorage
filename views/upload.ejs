@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传文件 | APACloudStorage</title>
+</head>
+<body>
+    <h1>上传文件</h1>
+    <p><%= ip %>，欢迎你</p>
+    <form action="/api/upload" method="post" enctype="multipart/form-data" id="upload-form">
+        <label for="username">用户名:</label>
+        <input type="text" id="username" name="username" required>
+        <br>
+        <label for="password">密码:</label>
+        <input type="password" id="password" name="password" required>
+        <br>
+        <label for="file">选择文件:</label>
+        <input type="file" id="file" name="file" required>
+        <br>
+        <p>文件大小限制: <%= maxSize %> GB, 不限制文件数量</p>
+        <input type="submit" value="上传">
+    </form>
+</body>
+</html>
