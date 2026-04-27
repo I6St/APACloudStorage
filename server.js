@@ -24,11 +24,11 @@ function includesEmoji(text) {
 }
 
 function encodeBase64(str) {
-    return Buffer.from(str).toString('base64');
+    return encodeURIComponent(Buffer.from(str).toString('base64'));
 }
 
 function decodeBase64(str) {
-    return Buffer.from(str, 'base64').toString('utf8');
+    return Buffer.from(decodeURIComponent(str), 'base64').toString('utf8');
 }
 
 
