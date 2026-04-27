@@ -67,10 +67,6 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
     }
-    if (includesEmoji(originalName)) {
-        res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
-        return;
-    }
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', req.body.username, 'info.json')));
     if (userInfo.password !== req.body.password) {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
