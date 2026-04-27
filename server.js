@@ -13,40 +13,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// const storage = multer.diskStorage({
-//     destination: 'files',
-//     filename: (req, file, cb) => {
-//         // 核心修复：将被错误解码的文件名重新转换为正确的 UTF-8 编码
-//         file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
-//         cb(null, true);
-//     },
-//     filename: (req, file, cb) => {
-//         cb(null, 'files/');
-//     },
-//     filename: (req, file, cb) => {
-//         const extname = path.extname(file.originalname);
-//         cb(null, Date.now() + '-' + file.originalname + extname);
-//     },
-//     limits: {
-//         fileSize: 1.5 * 1000 * 1000 * 1000
-//     }
-// });
-
-// const storage = multer.diskStorage({
-//     destination: (req, file, cb) => {
-//         cb(null, 'files/');
-//     },
-//     fileFilter: (req, file, cb) => {
-//         // 核心修复：手动纠正文件名编码
-//         file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
-//         cb(null, true);
-//     },
-//     filename: (req, file, cb) => {
-//         // 核心修复：解码后再保存
-//         const correctName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-//         cb(null, correctName);
-//     }
-// });
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -273,22 +239,23 @@ app.get('/about', (req, res) => {
  * @returns {string} 格式化后的主机名
  */
 function getFormattedHost(req) {
-    // 1. 获取包含端口的完整主机头，例如 "example.com:3000" 或 "example.com"
-    const hostHeader = req.get('host');
+    // // 1. 获取包含端口的完整主机头，例如 "example.com:3000" 或 "example.com"
+    // const hostHeader = req.get('host');
 
-    if (!hostHeader) {
-        return req.hostname || 'unknown';
-    }
+    // if (!hostHeader) {
+    //     return req.hostname || 'unknown';
+    // }
 
-    // 2. 分离主机名和端口
-    const [hostname, portStr] = hostHeader.split(':');
-    const port = parseInt(portStr, 10);
+    // // 2. 分离主机名和端口
+    // const [hostname, portStr] = hostHeader.split(':');
+    // const port = parseInt(portStr, 10);
 
-    // 3. 判断是否为默认端口，决定是否显示端口
-    const isDefaultPort = (port === 80 && req.protocol === 'http') ||
-        (port === 443 && req.protocol === 'https');
+    // // 3. 判断是否为默认端口，决定是否显示端口
+    // const isDefaultPort = (port === 80 && req.protocol === 'http') ||
+    //     (port === 443 && req.protocol === 'https');
 
-    return isDefaultPort ? hostname : hostHeader;
+    // return isDefaultPort ? hostname : hostHeader;
+    return 'strg.apakp.top';
 }
 
 app.get('/share/:username/:filename', (req, res) => {
