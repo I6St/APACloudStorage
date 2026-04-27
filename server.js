@@ -8,7 +8,7 @@ const https = require('https');
 let inviteCodes = [];
 
 const app = express();
-const port = 3000;
+const port = 114;
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -298,7 +298,7 @@ app.get('/share/:username/:filename', (req, res) => {
 const privateKey = fs.readFileSync('private.key');
 const certificate = fs.readFileSync('certificate.crt');
 const httpsServer = https.createServer({ key: privateKey, cert: certificate }, app);
-httpsServer.listen(443, () => {
+httpsServer.listen(port, () => {
     if (!fs.existsSync('files')) {
         fs.mkdirSync('files');
     }
@@ -310,6 +310,6 @@ httpsServer.listen(443, () => {
         console.log('邀请码文件已创建，初始邀请码为: ADMIN-INVITE-CODE');
     }
     inviteCodes = JSON.parse(fs.readFileSync('inviteCodes.json'));
-    console.log('HTTPS 服务器运行在 https://localhost:443');
+    console.log(`HTTPS 服务器运行在 https://localhost:${port}`);
 });
 
