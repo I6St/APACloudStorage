@@ -4,15 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>主页 | APACloudStorage</title>
+    <style>
+        body {
+            text-align: center;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+        }
+    </style>
 </head>
 <body>
     <h1>APACloudStorage</h1>
     <p>本项目纯公益，有条件请考虑捐赠</p>
-    <a href="/upload">上传文件</a>
-    <a href="/register">注册</a>
-    <a href="/change-password">修改密码</a>
-    <a href="/my-files">我的文件</a>
-    <a href="/about">关于</a>
+    <button onclick="window.open('/upload')">上传文件</button>
+    <button onclick="window.open('/register')">注册</button>
+    <button onclick="window.open('/change-password')">修改密码</button>
+    <button onclick="window.open('/my-files')">我的文件</button>
+    <button onclick="window.open('/about')">关于</button>
     <hr>
     <footer>
         &copy; 2026 APACloudStorage. 保留所有权利
