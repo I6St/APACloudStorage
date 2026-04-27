@@ -63,16 +63,10 @@ app.get('/upload', (req, res) => {
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
-    const file = req.file;
-    if (!file) {
-        res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
-        return;
-    }
     if (!fs.existsSync(path.join(__dirname, 'userdata', req.body.username))) {
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
     }
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     if (includesEmoji(originalName)) {
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
@@ -80,6 +74,12 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', req.body.username, 'info.json')));
     if (userInfo.password !== req.body.password) {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
+        return;
+    }
+    const file = req.file;
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    if (!file) {
+        res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
     }
     const fileName = originalName;
@@ -280,6 +280,10 @@ app.post('/api/delete', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
     }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
+        return;
+    }
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
     if (userInfo.password !== password) {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
@@ -305,9 +309,17 @@ app.post('/api/my-files', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
     }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
+        return;
+    }
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
     if (userInfo.password !== password) {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
+        return;
+    }
+    if (!fs.existsSync(path.join(__dirname, 'files', username))) {
+        fs.mkdirSync(path.join(__dirname, 'files', username));
         return;
     }
     let fileName;
@@ -349,11 +361,24 @@ app.post('/api/my-files', (req, res) => {
 
 app.get('/download/:path', (req, res) => {
     const [username, filename] = decodeBase64(req.params.path).split('/');
+    
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
+        return;
+    }
+    if (!fs.existsSync(path.join(__dirname, 'files', username, filename))) {
+        res.sendFile(path.join(__dirname, 'public', 'file-not-found.html'));
+        return;
+    }
     res.download(path.join(__dirname, 'files', username, filename));
 });
 
 app.get('/delete-file/:username/:password/:filename', (req, res) => {
     const filePath = path.join(__dirname, 'files', req.params.username, req.params.filename);
+    if (!fs.existsSync(path.join(__dirname, 'userdata', req.params.username))) {
+        res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
+        return;
+    }
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', req.params.username, 'info.json')));
     if (userInfo.password !== req.params.password) {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
