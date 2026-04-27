@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const https = require('https');
 
 
 let inviteCodes = [];
@@ -294,7 +295,10 @@ app.get('/share/:username/:filename', (req, res) => {
     res.render('share', { username: req.params.username, fileName: req.params.filename });
 });
 
-app.listen(port, () => {
+const privateKey = fs.readFileSync('private.key');
+const certificate = fs.readFileSync('certificate.crt');
+const httpsServer = https.createServer({ key: privateKey, cert: certificate }, app);
+httpsServer.listen(443, () => {
     if (!fs.existsSync('files')) {
         fs.mkdirSync('files');
     }
@@ -306,5 +310,6 @@ app.listen(port, () => {
         console.log('邀请码文件已创建，初始邀请码为: ADMIN-INVITE-CODE');
     }
     inviteCodes = JSON.parse(fs.readFileSync('inviteCodes.json'));
-    console.log(`服务器运行在 http://localhost:${port}`);
+    console.log('HTTPS 服务器运行在 https://localhost:443');
 });
+
