@@ -344,7 +344,7 @@ app.post('/api/my-files', (req, res) => {
             const files = fs.readdirSync(path.join(__dirname, 'files', username));
             return files.map(fileName => {
                 const sharePath = encodeBase64(`${username}/${fileName}`);
-                return `<li>${fileName} <button onclick="window.open('/delete-file/${username}/${password}/${fileName}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
+                return `<li>${fileName} <button onclick="if (confirm('确定要删除文件 ${fileName} 吗？')) window.open('/delete-file/${username}/${password}/${fileName}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
             }).join('');
         })()}</p>
         </ul>
