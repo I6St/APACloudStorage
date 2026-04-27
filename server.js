@@ -8,7 +8,7 @@ const https = require('https');
 let inviteCodes = [];
 
 const app = express();
-const port = 114;
+const port = 1145;
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
