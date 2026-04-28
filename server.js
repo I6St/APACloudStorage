@@ -45,7 +45,7 @@ const storage = multer.diskStorage({
         cb(null, './files/');
     },
     filename: function (req, file, cb) {
-        cb(null, `${file.fieldname}`);
+        cb(null, `${Date.now()}_${file.fieldname}`);
     },
     limits: {
         fileSize: 1.25 * 1000 * 1000 * 1000
@@ -64,17 +64,20 @@ app.get('/upload', (req, res) => {
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
     if (!fs.existsSync(path.join(__dirname, 'userdata', req.body.username))) {
+        fs.unlinkSync(file.path);
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
     }
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', req.body.username, 'info.json')));
     if (userInfo.password !== req.body.password) {
+        fs.unlinkSync(file.path);
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
         return;
     }
     const file = req.file;
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     if (!file) {
+        fs.unlinkSync(file.path);
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
     }
