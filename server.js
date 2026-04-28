@@ -345,7 +345,7 @@ app.post('/api/my-files', (req, res) => {
             const files = fs.readdirSync(path.join(__dirname, 'files', username));
             return files.map(fileName => {
                 const sharePath = encodeBase64(`${username}/${fileName}`);
-                return `<li>${fileName} <button onclick="if (confirm('确定要删除文件 ${fileName} 吗？')) window.open('/delete-file/${username}/${password}/${fileName}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
+                return `<li>${fileName} <button onclick="if (confirm('确定要删除文件 ${fileName} 吗？')) window.open('/delete-file/${encodeBase64(username + password + fileName)}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
             }).join('');
         })()}</p>
         </ul>
@@ -370,9 +370,10 @@ app.get('/download/:path', (req, res) => {
     res.download(path.join(__dirname, 'files', username, filename));
 });
 
-app.get('/delete-file/:username/:password/:filename', (req, res) => {
-    const filePath = path.join(__dirname, 'files', req.params.username, req.params.filename);
-    if (!fs.existsSync(path.join(__dirname, 'userdata', req.params.username))) {
+app.get('/delete-file/:data', (req, res) => {
+    const [username, password, filename] = decodeBase64(req.params.data).split('/');
+    const filePath = path.join(__dirname, 'files', username, filename);
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
     }
