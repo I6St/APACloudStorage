@@ -48,7 +48,7 @@ const storage = multer.diskStorage({
         cb(null, `${file.fieldname}`);
     },
     limits: {
-        fileSize: 1.75 * 1000 * 1000 * 1000
+        fileSize: 1.25 * 1000 * 1000 * 1000
     }
 });
 
@@ -59,7 +59,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 app.get('/upload', (req, res) => {
-    res.render('upload', { ip: req.ip, maxSize: 1.75 });
+    res.render('upload', { ip: req.ip, maxSize: 1.25 });
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
@@ -339,6 +339,7 @@ app.post('/api/my-files', (req, res) => {
         <h1>我的文件</h1>
         <p>${req.ip}，欢迎你</p>
         <p>用户名: ${username}</p>
+        <p>单文件最大大小: 1.25 GB，不限制文件数量</p>
         <ul>
         <p>${(function () {
             const files = fs.readdirSync(path.join(__dirname, 'files', username));
