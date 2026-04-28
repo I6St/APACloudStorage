@@ -345,7 +345,7 @@ app.post('/api/my-files', (req, res) => {
             const files = fs.readdirSync(path.join(__dirname, 'files', username));
             return files.map(fileName => {
                 const sharePath = encodeBase64(`${username}/${fileName}`);
-                return `<li>${fileName} <button onclick="if (confirm('确定要删除文件 ${fileName} 吗？')) window.open('/delete-file/${encodeBase64(username + password + fileName)}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
+                return `<li>${fileName} <button onclick="if (confirm('确定要删除文件 ${fileName} 吗？')) window.open('/delete-file/${encodeBase64(username + '/' + password + '/' + fileName)}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
             }).join('');
         })()}</p>
         </ul>
@@ -377,8 +377,8 @@ app.get('/delete-file/:data', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
     }
-    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', req.params.username, 'info.json')));
-    if (userInfo.password !== req.params.password) {
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
         return;
     }
