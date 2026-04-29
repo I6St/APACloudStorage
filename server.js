@@ -141,6 +141,9 @@ app.post('/api/register', (req, res) => {
     }
     log('INFO', `创建用户 ${username} 目录`);
     fs.mkdirSync(path.join(__dirname, 'userdata', username));
+    if (!fs.existsSync(path.join(__dirname, 'files', username))) {
+        fs.mkdirSync(path.join(__dirname, 'files', username));
+    }
     fs.writeFileSync(path.join(__dirname, 'userdata', username, 'info.json'), JSON.stringify({
         username,
         email,
