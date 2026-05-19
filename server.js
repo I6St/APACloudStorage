@@ -90,7 +90,6 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     log('INFO', `用户 ${req.body.username} 上传文件 ${fileName}`);
     const shareLink = `${getFormattedHost(req)}/share/${encodeBase64(`${req.body.username}/${fileName}`)}`;
     const downloadLink = `${getFormattedHost(req)}/download/${encodeBase64(`${req.body.username}/${fileName}`)}`;
-    fs.unlinkSync(file.path);
     res.send(`<html lang="zh-CN">
         <head>
             <meta charset="UTF-8">
