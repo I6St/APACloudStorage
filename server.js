@@ -63,6 +63,8 @@ app.get('/upload', (req, res) => {
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
+    const file = req.file;
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     if (!fs.existsSync(path.join(__dirname, 'userdata', req.body.username))) {
         fs.unlinkSync(file.path);
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
@@ -74,8 +76,6 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
         return;
     }
-    const file = req.file;
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     if (!file) {
         fs.unlinkSync(file.path);
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
@@ -90,6 +90,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     log('INFO', `用户 ${req.body.username} 上传文件 ${fileName}`);
     const shareLink = `${getFormattedHost(req)}/share/${encodeBase64(`${req.body.username}/${fileName}`)}`;
     const downloadLink = `${getFormattedHost(req)}/download/${encodeBase64(`${req.body.username}/${fileName}`)}`;
+    fs.unlinkSync(file.path);
     res.send(`<html lang="zh-CN">
         <head>
             <meta charset="UTF-8">
