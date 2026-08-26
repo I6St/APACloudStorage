@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= username %>分享的文件</title>
+    <title>分享的文件</title>
     <style>
         body {
             text-align: center;
         }
-        button {
+        button, input {
             margin: 10px;
             padding: 10px 20px;
         }
@@ -23,22 +23,36 @@
             padding: 8px;
             border-bottom: 1px solid #eee;
         }
+        .error {
+            color: red;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1><%= username %>分享的文件</h1>
-        <% if (isFolder) { %>
-            <h3>文件夹: <%= fileName %></h3>
+        <h1>分享的文件</h1>
+        <% if (needCode) { %>
+            <p>此分享链接已设置提取码</p>
+            <% if (error) { %>
+                <p class="error">提取码错误，请重试</p>
+            <% } %>
+            <form method="GET" action="/share/<%= token %>">
+                <input type="text" name="code" placeholder="请输入提取码" required>
+                <button type="submit">验证</button>
+            </form>
+        <% } else if (isFolder) { %>
+            <h3>文件夹: <%= share.itemPath %></h3>
             <p>共 <%= files.length %> 个文件</p>
             <div class="file-list">
-                <% files.forEach(function(f) { %>
-                    <div class="file-item">📄 <%= f.name %> <button onclick="window.open('/download/<%= f.sharePath %>')">下载</button></div>
+                <% files.forEach(function(f) { 
+                    const dlPath = encodeBase64(share.username + '/' + f.path);
+                %>
+                    <div class="file-item">📄 <%= f.name %> <button onclick="window.open('/download/<%= dlPath %>')">下载</button></div>
                 <% }) %>
             </div>
         <% } else { %>
             <h3><%= fileName %></h3>
-            <button onclick="window.open('/download/<%= sharePath %>')">下载文件</button>
+            <button onclick="window.open('/download/<%= encodeBase64(share.username + '/' + share.itemPath) %>')">下载文件</button>
         <% } %>
     </div>
     <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>

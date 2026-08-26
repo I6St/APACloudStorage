@@ -31,14 +31,70 @@ function decodeBase64(str) {
     return Buffer.from(decodeURIComponent(str), 'base64').toString('utf8');
 }
 
+function generateToken() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let token = '';
+    for (let i = 0; i < 16; i++) {
+        token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return token;
+}
 
+function getShareFilePath(token) {
+    return path.join(__dirname, 'shared', token + '.json');
+}
+
+function findShareByItem(username, itemPath, isFolder) {
+    if (!fs.existsSync(path.join(__dirname, 'shared'))) {
+        return null;
+    }
+    const files = fs.readdirSync(path.join(__dirname, 'shared'));
+    for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        const sharePath = path.join(__dirname, 'shared', file);
+        const share = JSON.parse(fs.readFileSync(sharePath));
+        const isFolderBool = isFolder === '1' || isFolder === true || isFolder === 'true';
+        if (share.username === username && share.itemPath === itemPath && share.isFolder === isFolderBool) {
+            return { token: file.replace('.json', ''), share: share };
+        }
+    }
+    return null;
+}
+
+function scanDirForShare(dir, base) {
+    const files = [];
+    const items = fs.readdirSync(dir);
+    items.forEach(item => {
+        const full = path.join(dir, item);
+        const rel = base ? base + '/' + item : item;
+        if (fs.statSync(full).isDirectory()) {
+            scanDirForShare(full, rel).forEach(f => files.push(f));
+        } else {
+            files.push({ name: item, path: rel });
+        }
+    });
+    return files;
+}
+
+function copyFolderRecursive(src, dst) {
+    fs.mkdirSync(dst, { recursive: true });
+    const items = fs.readdirSync(src);
+    items.forEach(item => {
+        const s = path.join(src, item);
+        const d = path.join(dst, item);
+        if (fs.statSync(s).isDirectory()) {
+            copyFolderRecursive(s, d);
+        } else {
+            fs.copyFileSync(s, d);
+        }
+    });
+}
 
 const app = express();
 const port = 1145;
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -56,7 +112,6 @@ const upload = multer({ storage });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 
 app.get('/upload', (req, res) => {
     const folderPath = req.query.folder || '';
@@ -440,6 +495,113 @@ app.post('/api/move-item', (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/share', (req, res) => {
+    const { username, password, itemPath, isFolder, extractCode } = req.body;
+    if (!username || !password || !itemPath) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const fullPath = path.join(__dirname, 'files', username, itemPath);
+    if (!fs.existsSync(fullPath)) {
+        return res.json({ success: false, error: '文件或文件夹不存在' });
+    }
+    const existing = findShareByItem(username, itemPath, isFolder);
+    if (existing) {
+        return res.json({ success: true, token: existing.token, shareUrl: `https://${getFormattedHost(req)}/share/${existing.token}`, existed: true });
+    }
+    let token = generateToken();
+    let attempts = 0;
+    while (fs.existsSync(getShareFilePath(token))) {
+        token = generateToken();
+        attempts++;
+        if (attempts > 20) {
+            return res.json({ success: false, error: '生成分享链接失败，请重试' });
+        }
+    }
+    fs.writeFileSync(getShareFilePath(token), JSON.stringify({
+        username,
+        itemPath,
+        isFolder: isFolder === '1' || isFolder === true,
+        extractCode: extractCode || ''
+    }));
+    log('INFO', `用户 ${username} 创建分享 ${itemPath}，token=${token}`);
+    res.json({ success: true, token: token, shareUrl: `https://${getFormattedHost(req)}/share/${token}`, existed: false });
+});
+
+app.post('/api/unshare', (req, res) => {
+    const { username, password, itemPath, isFolder } = req.body;
+    if (!username || !password || !itemPath) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const existing = findShareByItem(username, itemPath, isFolder);
+    if (!existing) {
+        return res.json({ success: false, error: '分享链接不存在' });
+    }
+    fs.unlinkSync(getShareFilePath(existing.token));
+    log('INFO', `用户 ${username} 删除分享 ${itemPath}，token=${existing.token}`);
+    res.json({ success: true });
+});
+
+app.post('/api/copy-item', (req, res) => {
+    const { username, password, itemPath, isFolder, newName } = req.body;
+    if (!username || !password || !itemPath) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const fullPath = path.join(__dirname, 'files', username, itemPath);
+    if (!fs.existsSync(fullPath)) {
+        return res.json({ success: false, error: '文件或文件夹不存在' });
+    }
+    const parentDir = path.dirname(fullPath);
+    const baseName = path.basename(fullPath);
+    let copyName = newName;
+    if (!copyName) {
+        const ext = path.extname(baseName);
+        const nameWithoutExt = path.basename(baseName, ext);
+        copyName = nameWithoutExt + ' - 副本' + ext;
+    }
+    const copyPath = path.join(parentDir, copyName);
+    if (fs.existsSync(copyPath)) {
+        return res.json({ success: false, error: '目标名称已存在' });
+    }
+    if (isFolder === '1' || isFolder === true) {
+        fs.mkdirSync(copyPath);
+        const items = fs.readdirSync(fullPath);
+        items.forEach(item => {
+            const src = path.join(fullPath, item);
+            const dst = path.join(copyPath, item);
+            if (fs.statSync(src).isDirectory()) {
+                copyFolderRecursive(src, dst);
+            } else {
+                fs.copyFileSync(src, dst);
+            }
+        });
+    } else {
+        fs.copyFileSync(fullPath, copyPath);
+    }
+    log('INFO', `用户 ${username} 复制 ${isFolder ? '文件夹' : '文件'} ${itemPath} 为 ${copyName}`);
+    res.json({ success: true });
+});
+
 app.post('/api/delete-item', (req, res) => {
     const { username, password, itemPath, isFolder } = req.body;
     if (!username || !password || !itemPath) {
@@ -510,28 +672,7 @@ app.get('/about', (req, res) => {
     res.render('about', { ip: req.ip });
 });
 
-/**
- * 获取格式化后的主机名（端口为默认值时隐藏）
- * @param {Object} req - Express 请求对象
- * @returns {string} 格式化后的主机名
- */
 function getFormattedHost(req) {
-    // // 1. 获取包含端口的完整主机头，例如 "example.com:3000" 或 "example.com"
-    // const hostHeader = req.get('host');
-
-    // if (!hostHeader) {
-    //     return req.hostname || 'unknown';
-    // }
-
-    // // 2. 分离主机名和端口
-    // const [hostname, portStr] = hostHeader.split(':');
-    // const port = parseInt(portStr, 10);
-
-    // // 3. 判断是否为默认端口，决定是否显示端口
-    // const isDefaultPort = (port === 80 && req.protocol === 'http') ||
-    //     (port === 443 && req.protocol === 'https');
-
-    // return isDefaultPort ? hostname : hostHeader;
     return 'strg.apakp.top';
 }
 
@@ -539,43 +680,31 @@ app.get('/q', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'q.html'));
 });
 
-app.get('/share/:path', (req, res) => {
-    log('INFO', `[${new Date().toLocaleString()} ${req.method} ${req.url} ${req.ip} ${req.headers['user-agent']} ${req.headers['accept-language']} INFO ${req.ip}] 获取分享文件`);
-    log('INFO', req.params.path);
-    log('INFO', atob(req.params.path));
-    const decoded = decodeBase64(req.params.path).split('/');
-    const username = decoded[0];
-    const originalPath = decoded.slice(1).join('/');
-    const filePath = path.join(__dirname, 'files', username, originalPath);
-    if (!fs.existsSync(filePath)) {
-        log('ERROR', `路径不存在: ${filePath}`);
+app.get('/share/:token', (req, res) => {
+    const token = req.params.token;
+    const shareFile = getShareFilePath(token);
+    if (!fs.existsSync(shareFile)) {
         res.sendFile(path.join(__dirname, 'public', 'file-not-found.html'));
+        return;
+    }
+    const share = JSON.parse(fs.readFileSync(shareFile));
+    const filePath = path.join(__dirname, 'files', share.username, share.itemPath);
+    if (!fs.existsSync(filePath)) {
+        res.sendFile(path.join(__dirname, 'public', 'file-not-found.html'));
+        return;
+    }
+    const code = req.query.code || '';
+    if (share.extractCode && code !== share.extractCode) {
+        res.render('share', { share: share, token: token, needCode: true, error: req.query.error ? true : false, encodeBase64: encodeBase64 });
         return;
     }
     const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
-        const files = [];
-        function scanDir(dir, base) {
-            const items = fs.readdirSync(dir);
-            items.forEach(item => {
-                const full = path.join(dir, item);
-                const rel = base ? base + '/' + item : item;
-                if (fs.statSync(full).isDirectory()) {
-                    scanDir(full, rel);
-                } else {
-                    files.push({ name: item, path: rel, sharePath: encodeBase64(`${username}/${rel}`) });
-                }
-            });
-        }
-        scanDir(filePath, originalPath);
-        const sharePath = encodeBase64(`${username}/${originalPath}`);
-        log('INFO', `渲染分享文件夹页面: ${username}/${originalPath}，包含 ${files.length} 个文件`);
-        res.render('share', { sharePath: sharePath, username: username, fileName: originalPath, isFolder: true, files: files });
+        const files = scanDirForShare(filePath, share.itemPath);
+        res.render('share', { share: share, token: token, isFolder: true, files: files, needCode: false, encodeBase64: encodeBase64 });
     } else {
         const fileName = path.basename(filePath);
-        const sharePath = encodeBase64(`${username}/${originalPath}`);
-        log('INFO', `渲染分享文件页面: ${username}/${originalPath}`);
-        res.render('share', { sharePath: sharePath, username: username, fileName: fileName, isFolder: false, files: [] });
+        res.render('share', { share: share, token: token, isFolder: false, fileName: fileName, needCode: false, encodeBase64: encodeBase64 });
     }
 });
 
@@ -589,6 +718,9 @@ httpsServer.listen(port, () => {
     if (!fs.existsSync('userdata')) {
         fs.mkdirSync('userdata');
     }
+    if (!fs.existsSync('shared')) {
+        fs.mkdirSync('shared');
+    }
     if (!fs.existsSync('inviteCodes.json')) {
         fs.writeFileSync('inviteCodes.json', JSON.stringify(['ADMIN-INVITE-CODE']));
         log('INFO', '邀请码文件已创建，初始邀请码为: ADMIN-INVITE-CODE');
@@ -600,4 +732,3 @@ httpsServer.listen(port, () => {
     inviteCodes = JSON.parse(fs.readFileSync('inviteCodes.json'));
     log('INFO', `HTTPS 服务器运行在 https://localhost:${port}`);
 });
-

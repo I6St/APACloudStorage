@@ -71,6 +71,15 @@
         .actions {
             margin: 10px 0;
         }
+        .share-info {
+            margin: 4px 0;
+            font-size: 12px;
+            color: #333;
+        }
+        .share-info a {
+            color: #0066cc;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
@@ -152,26 +161,28 @@
 
             data.folders.forEach(f => {
                 const folderPath = currentFolder ? currentFolder + '/' + f : f;
-                const sharePath = encodeBase64(username + '/' + folderPath);
                 html += `<div class="file-item">
                     <span class="folder" onclick="navigateTo('${escapeHtml(folderPath)}')">📁 ${escapeHtml(f)}</span>
                     <button onclick="currentItemPath='${escapeHtml(folderPath)}'; renameItem(true)">重命名</button>
                     <button onclick="currentItemPath='${escapeHtml(folderPath)}'; moveItem(true)">移动</button>
+                    <button onclick="currentItemPath='${escapeHtml(folderPath)}'; copyItem(true)">复制</button>
                     <button onclick="currentItemPath='${escapeHtml(folderPath)}'; deleteItem(true)">删除</button>
-                    <button onclick="window.open('/share/${sharePath}')">分享</button>
+                    <button onclick="shareItem(true)">分享</button>
+                    <div id="share-info-folder-${escapeHtml(folderPath).replace(/[^a-zA-Z0-9]/g, '_')}"></div>
                 </div>`;
             });
 
             data.files.forEach(f => {
                 const itemPath = currentFolder ? currentFolder + '/' + f : f;
                 const downloadPath = encodeBase64(username + '/' + itemPath);
-                const sharePath = encodeBase64(username + '/' + itemPath);
                 html += `<div class="file-item">📄 ${escapeHtml(f)}
                     <button onclick="window.open('/download/${downloadPath}')">下载</button>
                     <button onclick="currentItemPath='${escapeHtml(itemPath)}'; renameItem(false)">重命名</button>
                     <button onclick="currentItemPath='${escapeHtml(itemPath)}'; moveItem(false)">移动</button>
+                    <button onclick="currentItemPath='${escapeHtml(itemPath)}'; copyItem(false)">复制</button>
                     <button onclick="currentItemPath='${escapeHtml(itemPath)}'; deleteItem(false)">删除</button>
-                    <button onclick="window.open('/share/${sharePath}')">分享</button>
+                    <button onclick="shareItem(false)">分享</button>
+                    <div id="share-info-${escapeHtml(itemPath).replace(/[^a-zA-Z0-9]/g, '_')}"></div>
                 </div>`;
             });
 
@@ -282,6 +293,72 @@
             .then(data => {
                 if (data.success) loadFiles();
                 else alert(data.error || '移动失败');
+            });
+        }
+
+        function copyItem(isFolder) {
+            const oldName = currentItemPath.split('/').pop();
+            const newName = prompt('复制为新名称 (留空自动生成副本名称):', '');
+            if (newName === null) return;
+
+            fetch('/api/copy-item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, itemPath: currentItemPath, isFolder: isFolder ? '1' : '0', newName: newName })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) loadFiles();
+                else alert(data.error || '复制失败');
+            });
+        }
+
+        function shareItem(isFolder) {
+            const extractCode = prompt('设置提取码 (可选，直接回车表示不设置):', '');
+            if (extractCode === null) return;
+
+            fetch('/api/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, itemPath: currentItemPath, isFolder: isFolder ? '1' : '0', extractCode: extractCode })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const safePath = currentItemPath.replace(/[^a-zA-Z0-9]/g, '_');
+                    const containerId = isFolder ? 'share-info-folder-' + safePath : 'share-info-' + safePath;
+                    const container = document.getElementById(containerId);
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="share-info">
+                                分享链接: <a href="${data.shareUrl}" target="_blank">${data.shareUrl}</a>
+                                <button onclick="unshareItem('${isFolder ? '1' : '0'}')">删除分享链接</button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    alert(data.error || '分享失败');
+                }
+            });
+        }
+
+        function unshareItem(isFolder) {
+            if (!confirm('确定要删除分享链接吗？')) return;
+            fetch('/api/unshare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, itemPath: currentItemPath, isFolder: isFolder })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const safePath = currentItemPath.replace(/[^a-zA-Z0-9]/g, '_');
+                    const containerId = isFolder ? 'share-info-folder-' + safePath : 'share-info-' + safePath;
+                    const container = document.getElementById(containerId);
+                    if (container) container.innerHTML = '';
+                } else {
+                    alert(data.error || '删除分享失败');
+                }
             });
         }
 
