@@ -12,13 +12,34 @@
             margin: 10px;
             padding: 10px 20px;
         }
+        .file-list {
+            text-align: left;
+            display: inline-block;
+            width: 100%;
+            max-width: 600px;
+        }
+        .file-item {
+            margin: 8px 0;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1><%= username %>分享的文件</h1>
-        <h3><%= fileName %></h3>
-        <button onclick="window.open('/download/<%= sharePath %>')">下载文件</button>
+        <% if (isFolder) { %>
+            <h3>文件夹: <%= fileName %></h3>
+            <p>共 <%= files.length %> 个文件</p>
+            <div class="file-list">
+                <% files.forEach(function(f) { %>
+                    <div class="file-item">📄 <%= f.name %> <button onclick="window.open('/download/<%= f.sharePath %>')">下载</button></div>
+                <% }) %>
+            </div>
+        <% } else { %>
+            <h3><%= fileName %></h3>
+            <button onclick="window.open('/download/<%= sharePath %>')">下载文件</button>
+        <% } %>
     </div>
     <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>
 </body>

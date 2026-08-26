@@ -8,25 +8,37 @@
         body {
             text-align: center;
         }
-        input {
+        input, button {
             margin: 10px;
             padding: 10px 20px;
         }
-        input[type="submit"] {
-            margin: 10px;
-            padding: 10px 20px;
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            margin: 10px auto;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.3s;
         }
     </style>
 </head>
 <body>
     <h1>上传文件</h1>
     <p><%= ip %>，欢迎你</p>
-    <form action="/api/upload" method="post" enctype="multipart/form-data" id="upload-form">
+    <form id="upload-form">
         <label for="username">用户名:</label>
         <input type="text" id="username" name="username" required>
         <br>
         <label for="password">密码:</label>
         <input type="password" id="password" name="password" required>
+        <br>
+        <label for="folderPath">文件夹路径 (可选):</label>
+        <input type="text" id="folderPath" name="folderPath" value="<%= folderPath %>" placeholder="例如: folder1/folder2">
         <br>
         <label for="file">选择文件:</label>
         <input type="file" id="file" name="file" required>
@@ -35,14 +47,77 @@
             注意: 严禁滥用本服务，包括但不限于上传大文件、上传敏感文件等。如果发现违规行为，我们将立即删除违规文件并通知用户。
         </strong>
         <p id="tip">文件大小最大限制: <%= maxSize %> GB, 不限制文件数量</p>
-        <input type="submit" value="上传" id="upload-btn">
+        <div class="progress-bar" id="upload-progress" style="display:none;">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <p id="upload-status"></p>
+        <button type="button" id="upload-btn" onclick="uploadFile()">上传</button>
     </form>
     <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>
+
+    <script>
+        function uploadFile() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const folderPath = document.getElementById('folderPath').value;
+            const fileInput = document.getElementById('file');
+
+            if (!username || !password) { alert('请输入用户名和密码'); return; }
+            if (!fileInput.files[0]) { alert('请选择文件'); return; }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('folderPath', folderPath);
+
+            const progressBar = document.getElementById('upload-progress');
+            const progressFill = document.getElementById('progress-fill');
+            const status = document.getElementById('upload-status');
+            const btn = document.getElementById('upload-btn');
+
+            progressBar.style.display = 'block';
+            status.textContent = '上传中...';
+            btn.disabled = true;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total) * 100;
+                    progressFill.style.width = percent + '%';
+                    status.textContent = `上传中... ${percent.toFixed(1)}%`;
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    progressFill.style.width = '100%';
+                    status.textContent = '上传成功！正在跳转...';
+                    setTimeout(() => { window.location.href = '/my-files'; }, 1500);
+                } else {
+                    status.textContent = '上传失败，请检查用户名和密码';
+                    progressBar.style.display = 'none';
+                    btn.disabled = false;
+                }
+            };
+
+            xhr.onerror = function() {
+                status.textContent = '上传出错';
+                progressBar.style.display = 'none';
+                btn.disabled = false;
+            };
+
+            xhr.send(formData);
+        }
+
+        window.addEventListener('load', () => {
+            const savedUsername = localStorage.getItem('acs_username');
+            const savedPassword = localStorage.getItem('acs_password');
+            if (savedUsername) document.getElementById('username').value = savedUsername;
+            if (savedPassword) document.getElementById('password').value = savedPassword;
+        });
+    </script>
 </body>
-<script>
-    document.getElementById('upload-form').addEventListener('submit', function (e) {
-        document.getElementById('tip').textContent = '上传中...';
-        document.getElementById('upload-btn').disabled = true;
-    });
-</script>
 </html>

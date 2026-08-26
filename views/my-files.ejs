@@ -7,29 +7,312 @@
     <style>
         body {
             text-align: center;
+            font-family: Arial, sans-serif;
         }
-        input {
-            margin: 10px;
-            padding: 10px 20px;
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
         }
-        input[type="submit"] {
-            margin: 10px;
-            padding: 10px 20px;
+        .auth-form {
+            margin: 20px 0;
+        }
+        input, button {
+            margin: 5px;
+            padding: 8px 15px;
+        }
+        .file-list {
+            text-align: left;
+            display: inline-block;
+            width: 100%;
+            max-width: 600px;
+        }
+        .file-item {
+            margin: 8px 0;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .folder {
+            color: #0066cc;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .folder:hover {
+            text-decoration: underline;
+        }
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            margin: 10px auto;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .breadcrumb {
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .breadcrumb a {
+            margin: 0 5px;
+            color: #0066cc;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        #create-folder-area {
+            margin: 10px 0;
+        }
+        .actions {
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
-    <h1>我的文件</h1>
-    <p><%= ip %>，欢迎你</p>
-    <form action="/api/my-files" method="post">
-        <label for="username">用户名:</label>
-        <input type="text" id="username" name="username" required>
-        <br>
-        <label for="password">密码:</label>
-        <input type="password" id="password" name="password" required>
-        <br>
-        <input type="submit" value="查看文件">
-    </form>
-    <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>
+    <div class="container">
+        <h1>我的文件</h1>
+        <p><%= ip %>，欢迎你</p>
+
+        <div id="auth-section" class="auth-form">
+            <input type="text" id="username" placeholder="用户名" required>
+            <input type="password" id="password" placeholder="密码" required>
+            <button onclick="authenticate()">登录</button>
+        </div>
+
+        <div id="file-section" style="display:none;">
+            <div class="breadcrumb" id="breadcrumb"></div>
+            <div class="actions">
+                <button onclick="showCreateFolder()">新建文件夹</button>
+                <button onclick="document.getElementById('file-upload-input').click()">上传文件</button>
+                <button onclick="clearLocalStorage()">清除本地数据</button>
+                <input type="file" id="file-upload-input" style="display:none" onchange="uploadFile(this)">
+            </div>
+            <div id="create-folder-area" style="display:none;">
+                <input type="text" id="new-folder-name" placeholder="文件夹名称">
+                <button onclick="createFolder()">创建</button>
+                <button onclick="hideCreateFolder()">取消</button>
+            </div>
+            <div class="progress-bar" id="upload-progress" style="display:none;">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="upload-status"></p>
+            <div class="file-list" id="file-list"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentFolder = '';
+        let username = '';
+        let password = '';
+        let currentItemPath = '';
+
+        function encodeBase64(str) {
+            return encodeURIComponent(btoa(unescape(encodeURIComponent(str))));
+        }
+
+        function decodeBase64(str) {
+            return decodeURIComponent(escape(atob(decodeURIComponent(str))));
+        }
+
+        function authenticate() {
+            username = document.getElementById('username').value;
+            password = document.getElementById('password').value;
+            if (!username || !password) { alert('请输入用户名和密码'); return; }
+
+            fetch('/api/my-files', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, folderPath: currentFolder })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { alert(data.error); return; }
+                localStorage.setItem('acs_username', username);
+                localStorage.setItem('acs_password', password);
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('file-section').style.display = 'block';
+                renderFiles(data);
+            })
+            .catch(err => { alert('认证失败'); console.error(err); });
+        }
+
+        function renderFiles(data) {
+            currentFolder = data.currentFolder || '';
+            const list = document.getElementById('file-list');
+            let html = '';
+
+            if (data.parentFolder !== null && data.parentFolder !== undefined) {
+                html += `<div class="file-item folder" onclick="navigateTo('${escapeHtml(data.parentFolder)}')">../</div>`;
+            }
+
+            data.folders.forEach(f => {
+                const folderPath = currentFolder ? currentFolder + '/' + f : f;
+                const sharePath = encodeBase64(username + '/' + folderPath);
+                html += `<div class="file-item">
+                    <span class="folder" onclick="navigateTo('${escapeHtml(folderPath)}')">📁 ${escapeHtml(f)}</span>
+                    <button onclick="currentItemPath='${escapeHtml(folderPath)}'; deleteItem(true)">删除</button>
+                    <button onclick="window.open('/share/${sharePath}')">分享</button>
+                </div>`;
+            });
+
+            data.files.forEach(f => {
+                const itemPath = currentFolder ? currentFolder + '/' + f : f;
+                const downloadPath = encodeBase64(username + '/' + itemPath);
+                const sharePath = encodeBase64(username + '/' + itemPath);
+                html += `<div class="file-item">📄 ${escapeHtml(f)}
+                    <button onclick="window.open('/download/${downloadPath}')">下载</button>
+                    <button onclick="currentItemPath='${escapeHtml(itemPath)}'; deleteItem(false)">删除</button>
+                    <button onclick="window.open('/share/${sharePath}')">分享</button>
+                </div>`;
+            });
+
+            list.innerHTML = html;
+            updateBreadcrumb(data.breadcrumb || []);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateBreadcrumb(crumbs) {
+            const bc = document.getElementById('breadcrumb');
+            let html = '<a onclick="navigateTo(\'\'); return false;">根目录</a>';
+            crumbs.forEach((c, i) => {
+                const path = crumbs.slice(0, i + 1).join('/');
+                html += ` / <a onclick="navigateTo('${escapeHtml(path)}'); return false;">${escapeHtml(c)}</a>`;
+            });
+            bc.innerHTML = html;
+        }
+
+        function navigateTo(folder) {
+            currentFolder = folder;
+            loadFiles();
+        }
+
+        function loadFiles() {
+            fetch('/api/my-files', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, folderPath: currentFolder })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { alert(data.error); return; }
+                renderFiles(data);
+            });
+        }
+
+        function showCreateFolder() {
+            document.getElementById('create-folder-area').style.display = 'block';
+        }
+
+        function hideCreateFolder() {
+            document.getElementById('create-folder-area').style.display = 'none';
+            document.getElementById('new-folder-name').value = '';
+        }
+
+        function createFolder() {
+            const name = document.getElementById('new-folder-name').value.trim();
+            if (!name) { alert('请输入文件夹名称'); return; }
+
+            fetch('/api/create-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, folderName: name, currentFolder: currentFolder })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { hideCreateFolder(); loadFiles(); }
+                else { alert(data.error || '创建失败'); }
+            });
+        }
+
+        function deleteItem(isFolder) {
+            if (!confirm('确定要删除吗？')) return;
+            fetch('/api/delete-item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: username, password: password, itemPath: currentItemPath, isFolder: isFolder ? '1' : '0' })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) loadFiles();
+                else alert(data.error || '删除失败');
+            });
+        }
+
+        function uploadFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('folderPath', currentFolder);
+
+            const progressBar = document.getElementById('upload-progress');
+            const progressFill = document.getElementById('progress-fill');
+            const status = document.getElementById('upload-status');
+
+            progressBar.style.display = 'block';
+            status.textContent = '上传中...';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total) * 100;
+                    progressFill.style.width = percent + '%';
+                    status.textContent = `上传中... ${percent.toFixed(1)}%`;
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    progressFill.style.width = '100%';
+                    status.textContent = '上传成功！';
+                    input.value = '';
+                    setTimeout(() => { progressBar.style.display = 'none'; progressFill.style.width = '0%'; status.textContent = ''; }, 2000);
+                    loadFiles();
+                } else {
+                    status.textContent = '上传失败，请检查用户名和密码';
+                    progressBar.style.display = 'none';
+                }
+            };
+
+            xhr.onerror = function() {
+                status.textContent = '上传出错';
+                progressBar.style.display = 'none';
+            };
+
+            xhr.send(formData);
+        }
+
+        function clearLocalStorage() {
+            if (!confirm('确定要清除本地保存的用户名和密码吗？')) return;
+            localStorage.removeItem('acs_username');
+            localStorage.removeItem('acs_password');
+            document.getElementById('auth-section').style.display = 'block';
+            document.getElementById('file-section').style.display = 'none';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        window.addEventListener('load', () => {
+            const savedUsername = localStorage.getItem('acs_username');
+            const savedPassword = localStorage.getItem('acs_password');
+            if (savedUsername) document.getElementById('username').value = savedUsername;
+            if (savedPassword) document.getElementById('password').value = savedPassword;
+        });
+    </script>
 </body>
 </html>

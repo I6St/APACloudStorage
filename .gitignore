@@ -4,3 +4,5 @@ files/
 userdata/
 inviteCodes.json
 acs.log
+certificate.crt
+private.key

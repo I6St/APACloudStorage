@@ -59,12 +59,14 @@ app.use(express.urlencoded({ extended: true }));
 
 
 app.get('/upload', (req, res) => {
-    res.render('upload', { ip: req.ip, maxSize: 1.25 });
+    const folderPath = req.query.folder || '';
+    res.render('upload', { ip: req.ip, maxSize: 1.25, folderPath: folderPath });
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
     const file = req.file;
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    const folderPath = req.body.folderPath || '';
     if (!fs.existsSync(path.join(__dirname, 'userdata', req.body.username))) {
         fs.unlinkSync(file.path);
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
@@ -81,15 +83,17 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
     }
-    const fileName = originalName;
-    if (!fs.existsSync(path.join(__dirname, 'files', req.body.username))) {
-        fs.mkdirSync(path.join(__dirname, 'files', req.body.username));
+    const userDir = path.join(__dirname, 'files', req.body.username);
+    const targetDir = path.join(userDir, folderPath);
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
     }
-    const filePath = path.join(__dirname, 'files', req.body.username, fileName);
+    const filePath = path.join(targetDir, originalName);
     fs.renameSync(file.path, filePath);
-    log('INFO', `用户 ${req.body.username} 上传文件 ${fileName}`);
-    const shareLink = `${getFormattedHost(req)}/share/${encodeBase64(`${req.body.username}/${fileName}`)}`;
-    const downloadLink = `${getFormattedHost(req)}/download/${encodeBase64(`${req.body.username}/${fileName}`)}`;
+    log('INFO', `用户 ${req.body.username} 上传文件 ${originalName} 到 ${folderPath || '根目录'}`);
+    const relativePath = folderPath ? `${folderPath}/${originalName}` : originalName;
+    const shareLink = `https://${getFormattedHost(req)}/share/${encodeBase64(`${req.body.username}/${relativePath}`)}`;
+    const downloadLink = `https://${getFormattedHost(req)}/download/${encodeBase64(`${req.body.username}/${relativePath}`)}`;
     res.send(`<html lang="zh-CN">
         <head>
             <meta charset="UTF-8">
@@ -108,15 +112,37 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         <body>
         <h1>文件上传成功</h1>
         <p>用户名: ${req.body.username}</p>
-        <p>文件名: ${fileName}</p>
-        
+        <p>文件名: ${originalName}</p>
+        <p>文件夹: ${folderPath || '根目录'}</p>
         <p>下载直链 (进入 '我的文件' 查看): ${'*'.repeat(downloadLink.length)}</p>
         <p>分享链接: <a href="${shareLink}" target="_blank">${shareLink}</a></p>
         <button onclick="location.href='/upload'">继续上传文件</button>
         <button onclick="location.href='/my-files'">查看我的文件</button>
         <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>
+        <script>localStorage.setItem('acs_username', '${req.body.username}'); localStorage.setItem('acs_password', '${req.body.password}');</script>
         </body>
-</html>`);
+    </html>`);
+});
+
+app.post('/api/create-folder', (req, res) => {
+    const { username, password, folderName, currentFolder } = req.body;
+    if (!username || !password || !folderName) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const targetDir = path.join(__dirname, 'files', username, currentFolder || '', folderName);
+    if (fs.existsSync(targetDir)) {
+        return res.json({ success: false, error: '文件夹已存在' });
+    }
+    fs.mkdirSync(targetDir, { recursive: true });
+    log('INFO', `用户 ${username} 创建文件夹 ${currentFolder ? currentFolder + '/' : ''}${folderName}`);
+    res.json({ success: true });
 });
 
 app.get('/register', (req, res) => {
@@ -184,8 +210,8 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
-    log('INFO', `用户 ${username} 尝试登录`);
     const { username, password } = req.body;
+    log('INFO', `用户 ${username} 尝试登录`);
     if (!username || !password) {
         res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
         return;
@@ -219,6 +245,8 @@ app.post('/api/login', (req, res) => {
         <h1>登录成功</h1>
         <p>用户名: ${username}</p>
         <p>密码: ${password}</p>
+        <button onclick="localStorage.setItem('acs_username', '${username}'); localStorage.setItem('acs_password', '${password}'); location.href='/my-files'">进入我的文件</button>
+        <button onclick="localStorage.setItem('acs_username', '${username}'); localStorage.setItem('acs_password', '${password}'); location.href='/upload'">上传文件</button>
         <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>
     </body>
 </html>`);
@@ -306,79 +334,99 @@ app.get('/my-files', (req, res) => {
 });
 
 app.post('/api/my-files', (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, folderPath } = req.body;
     if (!username || !password) {
-        res.sendFile(path.join(__dirname, 'public', 'bad-request.html'));
-        return;
+        return res.json({ error: '缺少用户名或密码' });
     }
     if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
-        res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
-        return;
+        return res.json({ error: '用户不存在' });
     }
     const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
     if (userInfo.password !== password) {
-        res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
-        return;
+        return res.json({ error: '密码错误' });
     }
-    if (!fs.existsSync(path.join(__dirname, 'files', username))) {
-        fs.mkdirSync(path.join(__dirname, 'files', username));
-        return;
+    const userDir = path.join(__dirname, 'files', username);
+    const currentDir = path.join(userDir, folderPath || '');
+    if (!fs.existsSync(currentDir)) {
+        fs.mkdirSync(currentDir, { recursive: true });
     }
-    let fileName;
-    log('INFO', `用户 ${username} 获取文件列表`);
-    res.send(`<html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>我的文件 | APACloudStorage</title>
-            <style>
-                body {
-                    text-align: center;
-                }
-                button {
-                    margin: 10px;
-                    padding: 10px 20px;
-                }
-            </style>
-        </head>
-        <body>
-        <h1>我的文件</h1>
-        <p>${req.ip}，欢迎你</p>
-        <p>用户名: ${username}</p>
-        <p>单文件最大大小: 1.25 GB，不限制文件数量</p>
-        <ul>
-        <p>${(function () {
-            const files = fs.readdirSync(path.join(__dirname, 'files', username));
-            return files.map(fileName => {
-                const sharePath = encodeBase64(`${username}/${fileName}`);
-                return `<li>${fileName} <button onclick="if (confirm('确定要删除文件 ${fileName} 吗？')) window.open('/delete-file/${encodeBase64(username + '/' + password + '/' + fileName)}');location.reload()">删除</button> <button onclick="window.open('/download/${sharePath}')">下载</button> <button onclick="window.open('/share/${sharePath}')">打开分享链接</button></li>`
-            }).join('');
-        })()}</p>
-        </ul>
-        <button onclick="location.reload()">刷新</button>
-        <button onclick="location.href='/upload'">上传文件</button>
-        <hr><footer>&copy; APACloudStorage 2026. 保留所有权利。</footer>
-        </body>
-    </html>`);
-})
+    let items;
+    try {
+        items = fs.readdirSync(currentDir);
+    } catch (e) {
+        return res.json({ error: '无法读取目录' });
+    }
+    const folders = [];
+    const files = [];
+    items.forEach(item => {
+        const itemPath = path.join(currentDir, item);
+        const stat = fs.statSync(itemPath);
+        if (stat.isDirectory()) {
+            folders.push(item);
+        } else {
+            files.push(item);
+        }
+    });
+    const breadcrumb = folderPath ? folderPath.split('/').filter(Boolean) : [];
+    const parentFolder = folderPath ? folderPath.split('/').slice(0, -1).join('/') : null;
+    log('INFO', `用户 ${username} 获取文件列表，当前目录: ${folderPath || '根目录'}`);
+    res.json({
+        currentFolder: folderPath || '',
+        parentFolder: parentFolder,
+        breadcrumb: breadcrumb,
+        folders: folders,
+        files: files
+    });
+});
+
+app.post('/api/delete-item', (req, res) => {
+    const { username, password, itemPath, isFolder } = req.body;
+    if (!username || !password || !itemPath) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const fullPath = path.join(__dirname, 'files', username, itemPath);
+    if (!fs.existsSync(fullPath)) {
+        return res.json({ success: false, error: '文件或文件夹不存在' });
+    }
+    if (isFolder === '1' || isFolder === true) {
+        fs.rmSync(fullPath, { recursive: true });
+        log('INFO', `用户 ${username} 删除文件夹 ${itemPath}`);
+    } else {
+        fs.unlinkSync(fullPath);
+        log('INFO', `用户 ${username} 删除文件 ${itemPath}`);
+    }
+    res.json({ success: true });
+});
 
 app.get('/download/:path', (req, res) => {
-    const [username, filename] = decodeBase64(req.params.path).split('/');
+    const decoded = decodeBase64(req.params.path).split('/');
+    const username = decoded[0];
+    const filePath = decoded.slice(1).join('/');
     
     if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
     }
-    if (!fs.existsSync(path.join(__dirname, 'files', username, filename))) {
+    if (!fs.existsSync(path.join(__dirname, 'files', username, filePath))) {
         res.sendFile(path.join(__dirname, 'public', 'file-not-found.html'));
         return;
     }
-    res.download(path.join(__dirname, 'files', username, filename));
+    res.download(path.join(__dirname, 'files', username, filePath));
 });
 
 app.get('/delete-file/:data', (req, res) => {
-    const [username, password, filename] = decodeBase64(req.params.data).split('/');
-    const filePath = path.join(__dirname, 'files', username, filename);
+    const decoded = decodeBase64(req.params.data).split('/');
+    const username = decoded[0];
+    const password = decoded[1];
+    const filename = decoded.slice(2).join('/');
+    const fullPath = path.join(__dirname, 'files', username, filename);
     if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
         res.sendFile(path.join(__dirname, 'public', 'user-not-found.html'));
         return;
@@ -388,12 +436,12 @@ app.get('/delete-file/:data', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'pwd.html'));
         return;
     }
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(fullPath)) {
         res.sendFile(path.join(__dirname, 'public', 'file-not-found.html'));
         return;
     }
-    fs.unlinkSync(filePath);
-    log('INFO', `删除文件: ${filePath}`);
+    fs.unlinkSync(fullPath);
+    log('INFO', `删除文件: ${fullPath}`);
     res.send('<script>window.close();</script>');
 })
 
@@ -434,18 +482,40 @@ app.get('/share/:path', (req, res) => {
     log('INFO', `[${new Date().toLocaleString()} ${req.method} ${req.url} ${req.ip} ${req.headers['user-agent']} ${req.headers['accept-language']} INFO ${req.ip}] 获取分享文件`);
     log('INFO', req.params.path);
     log('INFO', atob(req.params.path));
-    const originalPath = decodeBase64(req.params.path).split('/')[1];
-    const username = decodeBase64(req.params.path).split('/')[0];
+    const decoded = decodeBase64(req.params.path).split('/');
+    const username = decoded[0];
+    const originalPath = decoded.slice(1).join('/');
     const filePath = path.join(__dirname, 'files', username, originalPath);
-    const fileName = path.basename(filePath);
     if (!fs.existsSync(filePath)) {
-        log('ERROR', `文件不存在: ${filePath}`);
+        log('ERROR', `路径不存在: ${filePath}`);
         res.sendFile(path.join(__dirname, 'public', 'file-not-found.html'));
         return;
     }
-    const sharePath = encodeBase64(`${username}/${fileName}`);
-    log('INFO', `渲染分享文件页面: ${username}/${originalPath}`);
-    res.render('share', { sharePath: sharePath, username: username, fileName: fileName });
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+        const files = [];
+        function scanDir(dir, base) {
+            const items = fs.readdirSync(dir);
+            items.forEach(item => {
+                const full = path.join(dir, item);
+                const rel = base ? base + '/' + item : item;
+                if (fs.statSync(full).isDirectory()) {
+                    scanDir(full, rel);
+                } else {
+                    files.push({ name: item, path: rel, sharePath: encodeBase64(`${username}/${rel}`) });
+                }
+            });
+        }
+        scanDir(filePath, originalPath);
+        const sharePath = encodeBase64(`${username}/${originalPath}`);
+        log('INFO', `渲染分享文件夹页面: ${username}/${originalPath}，包含 ${files.length} 个文件`);
+        res.render('share', { sharePath: sharePath, username: username, fileName: originalPath, isFolder: true, files: files });
+    } else {
+        const fileName = path.basename(filePath);
+        const sharePath = encodeBase64(`${username}/${originalPath}`);
+        log('INFO', `渲染分享文件页面: ${username}/${originalPath}`);
+        res.render('share', { sharePath: sharePath, username: username, fileName: fileName, isFolder: false, files: [] });
+    }
 });
 
 const privateKey = fs.readFileSync('private.key');
