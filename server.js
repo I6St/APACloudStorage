@@ -379,6 +379,67 @@ app.post('/api/my-files', (req, res) => {
     });
 });
 
+app.post('/api/rename-item', (req, res) => {
+    const { username, password, itemPath, newName, isFolder } = req.body;
+    if (!username || !password || !itemPath || !newName) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const fullPath = path.join(__dirname, 'files', username, itemPath);
+    if (!fs.existsSync(fullPath)) {
+        return res.json({ success: false, error: '文件或文件夹不存在' });
+    }
+    const parentDir = path.dirname(fullPath);
+    const newFullPath = path.join(parentDir, newName);
+    if (fs.existsSync(newFullPath)) {
+        return res.json({ success: false, error: '目标名称已存在' });
+    }
+    fs.renameSync(fullPath, newFullPath);
+    log('INFO', `用户 ${username} 将 ${isFolder ? '文件夹' : '文件'} ${itemPath} 重命名为 ${newName}`);
+    res.json({ success: true });
+});
+
+app.post('/api/move-item', (req, res) => {
+    const { username, password, itemPath, targetFolder, isFolder } = req.body;
+    if (!username || !password || !itemPath || targetFolder === undefined || targetFolder === null) {
+        return res.json({ success: false, error: '缺少必要参数' });
+    }
+    if (!fs.existsSync(path.join(__dirname, 'userdata', username))) {
+        return res.json({ success: false, error: '用户不存在' });
+    }
+    const userInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'userdata', username, 'info.json')));
+    if (userInfo.password !== password) {
+        return res.json({ success: false, error: '密码错误' });
+    }
+    const fullPath = path.join(__dirname, 'files', username, itemPath);
+    if (!fs.existsSync(fullPath)) {
+        return res.json({ success: false, error: '文件或文件夹不存在' });
+    }
+    const itemName = path.basename(fullPath);
+    const targetDir = path.join(__dirname, 'files', username, targetFolder);
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const destPath = path.join(targetDir, itemName);
+    if (fs.existsSync(destPath)) {
+        return res.json({ success: false, error: '目标文件夹中已存在同名项目' });
+    }
+    if (isFolder === '1' || isFolder === true) {
+        if (targetDir === fullPath || targetDir.startsWith(fullPath + path.sep)) {
+            return res.json({ success: false, error: '不能移动到自身或子目录内' });
+        }
+    }
+    fs.renameSync(fullPath, destPath);
+    log('INFO', `用户 ${username} 将 ${isFolder ? '文件夹' : '文件'} ${itemPath} 移动到 ${targetFolder}`);
+    res.json({ success: true });
+});
+
 app.post('/api/delete-item', (req, res) => {
     const { username, password, itemPath, isFolder } = req.body;
     if (!username || !password || !itemPath) {
