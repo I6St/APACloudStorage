@@ -167,7 +167,7 @@
                     <button onclick="currentItemPath='${escapeHtml(folderPath)}'; moveItem(true)">移动</button>
                     <button onclick="currentItemPath='${escapeHtml(folderPath)}'; copyItem(true)">复制</button>
                     <button onclick="currentItemPath='${escapeHtml(folderPath)}'; deleteItem(true)">删除</button>
-                    <button onclick="shareItem(true)">分享</button>
+                    <button onclick="currentItemPath='${escapeHtml(folderPath)}'; shareItem(true)">分享</button>
                     <div id="share-info-folder-${escapeHtml(folderPath).replace(/[^a-zA-Z0-9]/g, '_')}"></div>
                 </div>`;
             });
@@ -181,7 +181,7 @@
                     <button onclick="currentItemPath='${escapeHtml(itemPath)}'; moveItem(false)">移动</button>
                     <button onclick="currentItemPath='${escapeHtml(itemPath)}'; copyItem(false)">复制</button>
                     <button onclick="currentItemPath='${escapeHtml(itemPath)}'; deleteItem(false)">删除</button>
-                    <button onclick="shareItem(false)">分享</button>
+                    <button onclick="currentItemPath='${escapeHtml(itemPath)}'; shareItem(false)">分享</button>
                     <div id="share-info-${escapeHtml(itemPath).replace(/[^a-zA-Z0-9]/g, '_')}"></div>
                 </div>`;
             });

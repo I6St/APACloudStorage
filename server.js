@@ -673,7 +673,7 @@ app.get('/about', (req, res) => {
 });
 
 function getFormattedHost(req) {
-    return 'strg.apakp.top';
+    return 's.apakp.top';
 }
 
 app.get('/q', (req, res) => {
